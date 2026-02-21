@@ -1,0 +1,30 @@
+{
+  "name": "livephoto-crafter",
+  "version": "1.0.0",
+  "description": "跨端实况照片（Motion Photo / Live Photo）处理工具。支持将视频转换为兼容主流设备的实况照片，以及从实况照片中无损提取视频与静态封面。",
+  "main": "src/index.js",
+  "bin": {
+    "livephoto": "src/cli/index.js"
+  },
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "cli": "node src/cli/index.js"
+  },
+  "keywords": [
+    "live-photo",
+    "motion-photo",
+    "google-motion-photo",
+    "video-to-live-photo",
+    "live-photo-extract"
+  ],
+  "author": "Gang",
+  "license": "ISC",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}
