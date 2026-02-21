@@ -197,7 +197,7 @@ export function detectVideoInfo(buffer: Uint8Array, fileSize: number): {
     }
   }
   
-  // 3. MicroVideo 格式
+  // 3. MicroVideo 格式 (小米/三星)
   const microMatch = bufferStr.match(/["']?offset["']?:(\d+)/)
   if (microMatch) {
     const videoStart = parseInt(microMatch[1], 10)
@@ -207,8 +207,19 @@ export function detectVideoInfo(buffer: Uint8Array, fileSize: number): {
       format: 'microvideo'
     }
   }
-  
-  // 4. 通过 MP4 头检测
+
+  // 4. 旧版 MicroVideoOffset 格式
+  const offsetMatch = bufferStr.match(/MicroVideoOffset="(\d+)"/)
+  if (offsetMatch) {
+    const videoLength = parseInt(offsetMatch[1], 10)
+    return {
+      videoLength,
+      videoStart: fileSize - videoLength,
+      format: 'microvideo'
+    }
+  }
+
+  // 5. 通过 MP4 头检测
   const mp4Start = findMp4Start(buffer)
   if (mp4Start > 0) {
     return {
@@ -229,28 +240,41 @@ export function detectVideoInfo(buffer: Uint8Array, fileSize: number): {
  * 查找 JPEG 结束位置
  */
 export function findJpegEnd(buffer: Uint8Array, maxPos: number = buffer.length): number {
-  for (let i = 0; i < Math.min(buffer.length - 1, maxPos); i++) {
+  let jpegEnd = -1
+  const searchEnd = Math.min(maxPos + 1000, buffer.length - 1)
+
+  for (let i = 0; i < searchEnd; i++) {
     if (buffer[i] === 0xFF && buffer[i + 1] === JpegMarkers.EOI) {
-      return i + 2
+      jpegEnd = i + 2
     }
   }
-  return maxPos
+
+  // 如果没找到或超出范围，使用计算值
+  if (jpegEnd === -1 || jpegEnd > maxPos) {
+    return maxPos
+  }
+
+  return jpegEnd
 }
 
 /**
  * 查找 MP4 开始位置
  */
 export function findMp4Start(buffer: Uint8Array): number {
-  const ftypSignature = new TextEncoder().encode('ftyp')
-  
   for (let i = 0; i < buffer.length - 8; i++) {
-    if (buffer[i + 4] === ftypSignature[0] &&
-        buffer[i + 5] === ftypSignature[1] &&
-        buffer[i + 6] === ftypSignature[2] &&
-        buffer[i + 7] === ftypSignature[3]) {
+    // 查找 ftyp 标记
+    if (buffer[i] === 0x66 && buffer[i+1] === 0x74 &&
+        buffer[i+2] === 0x79 && buffer[i+3] === 0x70) {
+      // 检查前面是否有有效的 box size
+      if (i >= 4) {
+        const boxSize = (buffer[i - 4] << 24) | (buffer[i - 3] << 16) | (buffer[i - 2] << 8) | buffer[i - 1]
+        if (boxSize > 0 && boxSize < buffer.length) {
+          return i - 4
+        }
+      }
       return i
     }
   }
-  
+
   return -1
 }
