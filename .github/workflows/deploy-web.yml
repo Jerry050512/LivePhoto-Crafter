@@ -11,6 +11,9 @@ jobs:
     # 仅在 PR 被合并且源分支是 web 时运行
     if: github.event.pull_request.merged == true && github.event.pull_request.head.ref == 'web'
     runs-on: ubuntu-latest
+
+    env:
+      VITE_BASE_URL: '/LivePhoto-Crafter/'
     
     permissions:
       contents: read
