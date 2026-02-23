@@ -5,7 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { generateXmp, injectXmpToJpeg } = require('./xmp');
+const { generateXmp, injectXmpToJpeg, isValidJpeg } = require('./xmp');
 const { VideoCodec } = require('./constants');
 
 /**
@@ -63,7 +63,17 @@ function createMotionPhoto(videoPath, coverPath, outputPath, options = {}) {
         }
         
         // 读取封面图
-        const coverBuffer = fs.readFileSync(finalCoverPath);
+        let coverBuffer = fs.readFileSync(finalCoverPath);
+        
+        // 检查是否为有效的 JPEG 文件，如果不是则转换
+        if (!isValidJpeg(coverBuffer)) {
+            console.log(`[CLI] 封面图不是有效的 JPEG 格式，正在转换...`);
+            const convertedCoverPath = path.join(outputDir, `temp_cover_converted_${Date.now()}.jpg`);
+            convertImageToJpeg(finalCoverPath, convertedCoverPath);
+            coverBuffer = fs.readFileSync(convertedCoverPath);
+            tempFiles.push(convertedCoverPath);
+            console.log(`[CLI] 封面图转换完成: ${convertedCoverPath}`);
+        }
         
         // 3. 生成 XMP 元数据并注入
         const timestampUs = options.timestampUs || 0;
@@ -151,8 +161,28 @@ function extractCoverFromVideo(videoPath, outputPath, timestamp = '00:00:00.000'
     }
 }
 
+/**
+ * 将任意图片格式转换为 JPEG
+ * @param {string} inputPath - 输入图片路径
+ * @param {string} outputPath - 输出 JPEG 路径
+ * @returns {string} - 输出路径
+ */
+function convertImageToJpeg(inputPath, outputPath) {
+    const { execSync } = require('child_process');
+    
+    const cmd = `ffmpeg -y -i "${inputPath}" -q:v 2 "${outputPath}"`;
+    
+    try {
+        execSync(cmd, { stdio: 'pipe' });
+        return outputPath;
+    } catch (error) {
+        throw new Error(`图片转换为 JPEG 失败: ${error.message}`);
+    }
+}
+
 module.exports = {
     createMotionPhoto,
     convertVideoCodec,
-    extractCoverFromVideo
+    extractCoverFromVideo,
+    convertImageToJpeg
 };
