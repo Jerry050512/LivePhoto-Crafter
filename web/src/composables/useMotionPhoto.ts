@@ -1,5 +1,5 @@
 import { useFFmpeg } from '@/composables/useFFmpeg'
-import { generateXmp, injectXmpToJpeg, detectVideoInfo, findJpegEnd } from '@/utils/xmp'
+import { generateXmp, injectXmpToJpeg, detectVideoInfo, findJpegEnd, isValidJpeg } from '@/utils/xmp'
 
 export interface CreateOptions {
   timestamp?: number
@@ -13,6 +13,53 @@ export interface ExtractResult {
   coverSize: number
   videoSize: number
   format: string
+}
+
+/**
+ * 将任意图片格式转换为 JPEG Blob
+ * @param imageFile 图片文件
+ * @returns JPEG 格式的 Blob
+ */
+async function convertToJpeg(imageFile: File): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+
+    if (!ctx) {
+      reject(new Error('无法创建 canvas context'))
+      return
+    }
+
+    const url = URL.createObjectURL(imageFile)
+
+    img.onload = () => {
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      ctx.drawImage(img, 0, 0)
+
+      canvas.toBlob(
+        (blob) => {
+          URL.revokeObjectURL(url)
+          if (blob) {
+            console.log(`[ImageConvert] Converted to JPEG: ${blob.size} bytes`)
+            resolve(blob)
+          } else {
+            reject(new Error('图片转换为 JPEG 失败'))
+          }
+        },
+        'image/jpeg',
+        0.95
+      )
+    }
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('图片加载失败'))
+    }
+
+    img.src = url
+  })
 }
 
 // 使用 Canvas 从视频提取帧
@@ -147,8 +194,20 @@ export function useMotionPhoto() {
       // Get or create cover
       let coverBytes: Uint8Array
       if (options.coverFile) {
-        console.log('[MotionPhoto] Using custom cover file')
-        coverBytes = new Uint8Array(await options.coverFile.arrayBuffer())
+        console.log('[MotionPhoto] Using custom cover file:', options.coverFile.name, options.coverFile.type)
+        let coverArrayBuffer = await options.coverFile.arrayBuffer()
+        let coverUint8Array = new Uint8Array(coverArrayBuffer)
+
+        // 检查是否为有效的 JPEG 文件
+        if (!isValidJpeg(coverUint8Array)) {
+          console.log('[MotionPhoto] Cover is not a valid JPEG, converting...')
+          const jpegBlob = await convertToJpeg(options.coverFile)
+          coverArrayBuffer = await jpegBlob.arrayBuffer()
+          coverUint8Array = new Uint8Array(coverArrayBuffer)
+          console.log(`[MotionPhoto] Cover converted to JPEG: ${coverUint8Array.length} bytes`)
+        }
+
+        coverBytes = coverUint8Array
       } else {
         const timestamp = options.timestamp || 0
         console.log(`[MotionPhoto] Extracting frame at ${timestamp}s using Canvas`)
