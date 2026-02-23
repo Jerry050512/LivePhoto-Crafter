@@ -1,0 +1,56 @@
+name: Deploy Web to GitHub Pages
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  deploy:
+    # 仅在 PR 被合并且源分支是 web 时运行
+    if: github.event.pull_request.merged == true && github.event.pull_request.head.ref == 'web'
+    runs-on: ubuntu-latest
+
+    env:
+      VITE_BASE_URL: '/LivePhoto-Crafter/'
+    
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    
+    concurrency:
+      group: 'pages'
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          cd web
+          npm install
+
+      - name: Build
+        run: |
+          cd web
+          npm run build
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
